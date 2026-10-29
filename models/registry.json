@@ -1,0 +1,90 @@
+{
+    "registry_version": "1.0",
+    "latest_model": "xgb_bot_20261029_180451",
+    "models": {
+        "xgb_bot_20261029_170504": {
+            "class_name": "XGBMinimaxBot",
+            "model_path": "models/connect4_xgb_20261029_170504.json",
+            "source_file": "agents/xgb_bot.py",
+            "hyperparameters": {
+                "n_estimators": 100,
+                "learning_rate": 0.1,
+                "max_depth": 4,
+                "objective": "reg:squarederror"
+            },
+            "training_mse": 0.09108923128021428,
+            "updated_at": "2026-10-29 17:05:04",
+            "description": "Versioned checkpoint trained via aggregated database history and iterative self-play."
+        },
+        "xgb_bot_20261029_172426": {
+            "class_name": "XGBMinimaxBot",
+            "model_path": "models/connect4_xgb_20261029_172426.json",
+            "source_file": "agents/xgb_bot.py",
+            "hyperparameters": {
+                "n_estimators": 100,
+                "learning_rate": 0.1,
+                "max_depth": 4,
+                "objective": "reg:squarederror"
+            },
+            "training_mse": 0.052751028586480196,
+            "updated_at": "2026-10-29 17:24:26",
+            "description": "Versioned checkpoint trained via aggregated database history and iterative self-play."
+        },
+        "xgb_bot_20261029_173223": {
+            "class_name": "XGBMinimaxBot",
+            "model_path": "models/connect4_xgb_20261029_173223.json",
+            "source_file": "agents/xgb_bot.py",
+            "hyperparameters": {
+                "n_estimators": 100,
+                "learning_rate": 0.1,
+                "max_depth": 4,
+                "objective": "reg:squarederror"
+            },
+            "training_mse": 0.09239834233045213,
+            "updated_at": "2026-10-29 17:32:23",
+            "description": "Versioned checkpoint trained via aggregated database history and iterative self-play."
+        },
+        "xgb_bot_20261029_173637": {
+            "class_name": "XGBMinimaxBot",
+            "model_path": "models/connect4_xgb_20261029_173637.json",
+            "source_file": "agents/xgb_bot.py",
+            "hyperparameters": {
+                "n_estimators": 100,
+                "learning_rate": 0.1,
+                "max_depth": 4,
+                "objective": "reg:squarederror"
+            },
+            "training_mse": 0.07589479547667298,
+            "updated_at": "2026-10-29 17:36:37",
+            "description": "Versioned checkpoint trained via aggregated database history and iterative self-play."
+        },
+        "xgb_bot_20261029_175439": {
+            "class_name": "XGBMinimaxBot",
+            "model_path": "models/connect4_xgb_20261029_175439.json",
+            "source_file": "agents/xgb_bot.py",
+            "hyperparameters": {
+                "n_estimators": 100,
+                "learning_rate": 0.1,
+                "max_depth": 4,
+                "objective": "reg:squarederror"
+            },
+            "training_mse": 0.045057083961976795,
+            "updated_at": "2026-10-29 17:54:39",
+            "description": "Versioned checkpoint trained via aggregated database history and iterative self-play."
+        },
+        "xgb_bot_20261029_180451": {
+            "class_name": "XGBMinimaxBot",
+            "model_path": "models/connect4_xgb_20261029_180451.json",
+            "source_file": "agents/xgb_bot.py",
+            "hyperparameters": {
+                "n_estimators": 100,
+                "learning_rate": 0.1,
+                "max_depth": 4,
+                "objective": "reg:squarederror"
+            },
+            "training_mse": 0.09530432871051628,
+            "updated_at": "2026-10-29 18:04:51",
+            "description": "Versioned checkpoint trained via aggregated database history and iterative self-play."
+        }
+    }
+}

@@ -1,0 +1,80 @@
+# Environment Files
+.env
+*.env
+.venv
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / Packaging & Build
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Machine Learning Checkpoints & Weights
+*.pt
+*.pth
+*.ckpt
+*.weights
+wandb/
+mlruns/
+
+# Trained Models (keep registry)
+models/*.json
+models/*.bin
+models/*.pkl
+models/*.pth
+!models/registry.json
+
+# Datasets, Large Files, & Archives
+data/
+datasets/
+*.csv
+*.parquet
+*.jsonl
+*.zip
+*.tar.gz
+
+# Logs, Databases, & History
+logs/
+*.log
+*.db
+*.sqlite3
+
+# Profile / Performance Stats
+*.prof
+
+# IDEs, Editors, & OS Files
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints

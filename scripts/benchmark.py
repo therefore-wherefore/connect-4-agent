@@ -1,0 +1,272 @@
+import os
+import sys
+import time
+import hashlib
+import numpy as np
+
+# Automatically find project root and ensure clean imports
+if (PROJECT_ROOT := os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from environment.board import create_board, get_valid_locations, drop_piece, is_terminal_node, winning_move
+from agents.uniform import UniformDistributionBot
+from agents.normal_dist import NormalDistributionBot
+from agents.minimax_bot import MiniMaxBot
+from agents.xgb_bot import XGBMinimaxBot
+from persistence.database import init_db, log_game_record, fetch_model_registry_from_db, log_benchmark_record, fetch_all_benchmarks
+
+AGENT_REGISTRY_MAP = {
+    "random_bot": UniformDistributionBot,
+    "normal_bot": NormalDistributionBot,
+    "minimax_bot": MiniMaxBot,
+    "xgb_bot": XGBMinimaxBot,
+}
+
+def get_agent_fingerprint(agent_key, model_version=None):
+    """Computes an MD5 checksum of the agent's source code and its specific active model weights."""
+    hasher = hashlib.md5()
+    
+    file_map = {
+        "random_bot": "agents/uniform.py",
+        "normal_bot": "agents/normal_dist.py",
+        "minimax_bot": "agents/minimax_bot.py",
+        "xgb_bot": "agents/xgb_bot.py"
+    }
+    
+    target_file = file_map.get(agent_key, "")
+    if os.path.exists(target_file):
+        with open(target_file, "rb") as f:
+            hasher.update(f.read())
+            
+    if agent_key == "xgb_bot":
+        registry = fetch_model_registry_from_db()
+        models_dict = registry.get("models", {})
+        
+        target_key = model_version if model_version else registry.get("latest_model")
+        model_path = None
+        
+        if target_key and target_key in models_dict:
+            model_path = models_dict[target_key].get("model_path")
+            
+        if not model_path or not os.path.exists(model_path):
+            legacy_path = "connect4_xgb.json"
+            if os.path.exists(legacy_path):
+                model_path = legacy_path
+                
+        if model_path and os.path.exists(model_path):
+            with open(model_path, "rb") as f:
+                hasher.update(f.read())
+                
+    return hasher.hexdigest()
+
+def already_tested_with_current_fingerprints(agent_a, agent_b, history, ver_a=None, ver_b=None):
+    """Skips testing if both agents' specific versions and fingerprints match a previous entry."""
+    fp_a = get_agent_fingerprint(agent_a, ver_a)
+    fp_b = get_agent_fingerprint(agent_b, ver_b)
+    
+    name_a = f"{agent_a}:{ver_a}" if ver_a else agent_a
+    name_b = f"{agent_b}:{ver_b}" if ver_b else agent_b
+    
+    for entry in history:
+        pair = entry.get("pair", [])
+        fingerprints = entry.get("fingerprints", {})
+        if sorted(pair) == sorted([name_a, name_b]):
+            if fingerprints.get(name_a) == fp_a and fingerprints.get(name_b) == fp_b:
+                return True
+    return False
+
+def instantiate_agent(p_type, player_id, model_version=None):
+    if p_type == "normal_bot":
+        return AGENT_REGISTRY_MAP[p_type](player_id=player_id, sigma=1.2)
+    elif p_type == "minimax_bot":
+        return MiniMaxBot(player_id=player_id, depth=3)
+    elif p_type == "xgb_bot":
+        return XGBMinimaxBot(player_id=player_id, depth=3, model_version=model_version)
+    return AGENT_REGISTRY_MAP[p_type](player_id=player_id)
+
+def play_match_with_telemetry(agent_p0, agent_p1):
+    state = create_board()
+    turn = 0
+    agents = {0: agent_p0, 1: agent_p1}
+    moves_history = []
+    
+    while not is_terminal_node(state):
+        valid_moves = get_valid_locations(state)
+        if not valid_moves:
+            break
+            
+        current_agent = agents[turn]
+        col = current_agent.get_move(state)
+        
+        if col is None or col not in valid_moves:
+            col = np.random.choice(valid_moves)
+            
+        moves_history.append(int(col))
+        state = drop_piece(state, col, turn)
+        
+        if winning_move(state, turn):
+            return turn, moves_history
+        elif is_terminal_node(state):
+            return -1, moves_history
+            
+        turn = 1 - turn
+        
+    return -1, moves_history
+
+def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ver_b=None):
+    history = fetch_all_benchmarks()
+
+    label_a = f"{agent_a_key}:{ver_a}" if ver_a else agent_a_key
+    label_b = f"{agent_b_key}:{ver_b}" if ver_b else agent_b_key
+
+    if already_tested_with_current_fingerprints(agent_a_key, agent_b_key, history, ver_a, ver_b):
+        print(f"\n[Cache Hit] Skipping benchmark: '{label_a}' vs '{label_b}' have no changes.")
+        for entry in history:
+            if sorted(entry.get("pair", [])) == sorted([label_a, label_b]):
+                return entry
+        return None
+
+    print(f"\n[MLOps Benchmark] Running evaluation: {label_a} vs {label_b} ({total_games} games)...")
+    
+    stats = {
+        "pair": [label_a, label_b],
+        "fingerprints": {
+            label_a: get_agent_fingerprint(agent_a_key, ver_a),
+            label_b: get_agent_fingerprint(agent_b_key, ver_b)
+        },
+        label_a: {"wins": 0, "losses": 0, "ties": 0},
+        label_b: {"wins": 0, "losses": 0, "ties": 0},
+        "total_games": total_games,
+        "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+    }
+    
+    half_games = total_games // 2
+    game_lengths = []
+
+    # Block 1: Agent A as P0, Agent B as P1
+    for _ in range(half_games):
+        a_bot = instantiate_agent(agent_a_key, 0, model_version=ver_a)
+        b_bot = instantiate_agent(agent_b_key, 1, model_version=ver_b)
+        winner, moves = play_match_with_telemetry(a_bot, b_bot)
+        
+        game_lengths.append(len(moves))
+        if winner == 0:
+            stats[label_a]["wins"] += 1
+            stats[label_b]["losses"] += 1
+            winning_agent = label_a
+        elif winner == 1:
+            stats[label_b]["wins"] += 1
+            stats[label_a]["losses"] += 1
+            winning_agent = label_b
+        else:
+            stats[label_a]["ties"] += 1
+            stats[label_b]["ties"] += 1
+            winning_agent = "tie"
+            
+        log_game_record({
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "game_type": "benchmark",
+            "player_0": label_a,
+            "player_1": label_b,
+            "winner": winning_agent,
+            "total_moves": len(moves),
+            "search_depth": 3,
+            "moves": moves
+        })
+
+    # Block 2: Agent B as P0, Agent A as P1
+    for _ in range(half_games):
+        b_bot = instantiate_agent(agent_b_key, 0, model_version=ver_b)
+        a_bot = instantiate_agent(agent_a_key, 1, model_version=ver_a)
+        winner, moves = play_match_with_telemetry(b_bot, a_bot)
+        
+        game_lengths.append(len(moves))
+        if winner == 0:
+            stats[label_b]["wins"] += 1
+            stats[label_a]["losses"] += 1
+            winning_agent = label_b
+        elif winner == 1:
+            stats[label_a]["wins"] += 1
+            stats[label_b]["losses"] += 1
+            winning_agent = label_a
+        else:
+            stats[label_a]["ties"] += 1
+            stats[label_b]["ties"] += 1
+            winning_agent = "tie"
+            
+        log_game_record({
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "game_type": "benchmark",
+            "player_0": label_b,
+            "player_1": label_a,
+            "winner": winning_agent,
+            "total_moves": len(moves),
+            "search_depth": 3,
+            "moves": moves
+        })
+
+    avg_len = sum(game_lengths) / len(game_lengths) if game_lengths else 0
+    print("\n=== BENCHMARK SUMMARY ===")
+    for agent_label in [label_a, label_b]:
+        wins = stats[agent_label]["wins"]
+        losses = stats[agent_label]["losses"]
+        ties = stats[agent_label]["ties"]
+        win_rate = (wins / total_games) * 100
+        print(f"Agent: {agent_label}")
+        print(f"  Wins: {wins} | Losses: {losses} | Ties: {ties} | Win Rate: {win_rate:.1f}%")
+    print(f"  Average Match Length: {avg_len:.1f} moves")
+
+    # Save benchmark summary record to SQLite benchmarks table
+    log_benchmark_record(stats)
+        
+    return stats
+
+if __name__ == "__main__":
+    print("=== MLOps Automated Model Tournament Runner ===")
+    
+    # Initialize database schema explicitly on startup
+    init_db()
+    
+    registry = fetch_model_registry_from_db()
+    registered_models = list(registry.get("models", {}).keys())
+    
+    if not registered_models:
+        print("No registered models found in SQLite database. Running default latest vs minimax.")
+        run_smart_benchmark("xgb_bot", "minimax_bot", total_games=40)
+        sys.exit(0)
+
+    print(f"Found {len(registered_models)} registered model checkpoints to evaluate against Minimax baseline.")
+
+    # Phase 1: Benchmark all registered models against Minimax baseline
+    baseline_results = []
+    for version_id in registered_models:
+        stats = run_smart_benchmark("xgb_bot", "minimax_bot", total_games=40, ver_a=version_id, ver_b=None)
+        if stats:
+            label = f"xgb_bot:{version_id}"
+            wins = stats.get(label, {}).get("wins", 0)
+            win_rate = (wins / 40.0) * 100
+            baseline_results.append((version_id, win_rate))
+
+    # Phase 2: Rank models by win rate against Minimax and select top 3
+    baseline_results.sort(key=lambda x: x[1], reverse=True)
+    
+    print("\n" + "="*45)
+    print("      MINIMAX SCREENING LEADERBOARD      ")
+    print("="*45)
+    for rank, (vid, wr) in enumerate(baseline_results, 1):
+        print(f"  {rank}. {vid} -> Win Rate vs Minimax: {wr:.1f}%")
+    print("="*45)
+
+    top_3_versions = [vid for vid, wr in baseline_results[:3]]
+    print(f"\nTop {len(top_3_versions)} models selected for the Champion Round-Robin Tournament: {top_3_versions}")
+
+    # Phase 3: Run round-robin tournament among the top 3 models
+    if len(top_3_versions) > 1:
+        print("\n=== STARTING TOP-3 ROUND-ROBIN TOURNAMENT ===")
+        for i in range(len(top_3_versions)):
+            for j in range(i + 1, len(top_3_versions)):
+                v_a = top_3_versions[i]
+                v_b = top_3_versions[j]
+                run_smart_benchmark("xgb_bot", "xgb_bot", total_games=40, ver_a=v_a, ver_b=v_b)
+    else:
+        print("\nOnly 1 model available in SQLite. Skipping round-robin tournament.")

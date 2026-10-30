@@ -3,10 +3,8 @@ import sys
 import cProfile
 import pstats
 
-
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+if PROJECT_ROOT not in sys.path:    sys.path.insert(0, PROJECT_ROOT)
 
 from environment.board import create_board, is_terminal_node, drop_piece
 from agents.xgb_bot import XGBMinimaxBot
@@ -14,7 +12,6 @@ from agents.minimax_bot import MiniMaxBot
 
 def run_benchmark():
     state = create_board()
-    
     
     bot0 = XGBMinimaxBot(player_id=0, depth=3, model_version="champion")
     bot1 = MiniMaxBot(player_id=1, depth=3)

@@ -5,21 +5,22 @@ import hashlib
 import numpy as np
 
 
-if (PROJECT_ROOT := os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+if (PROJECT_ROOT := os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) not in sys.path:    sys.path.insert(0, PROJECT_ROOT)
 
 from environment.board import create_board, get_valid_locations, drop_piece, is_terminal_node, winning_move
 from agents.uniform import UniformDistributionBot
 from agents.normal_dist import NormalDistributionBot
 from agents.minimax_bot import MiniMaxBot
+from agents.rf_bot import RandomForestMinimaxBot
 from agents.xgb_bot import XGBMinimaxBot
 from persistence.database import init_db, log_game_record, fetch_model_registry_from_db, log_benchmark_record, fetch_all_benchmarks
 
 AGENT_REGISTRY_MAP = {
-    "random_bot": UniformDistributionBot,
-    "normal_bot": NormalDistributionBot,
-    "minimax_bot": MiniMaxBot,
-    "xgb_bot": XGBMinimaxBot,
+    "random_bot":  lambda player_id, model_version=None: UniformDistributionBot(player_id=player_id),
+    "normal_bot":  lambda player_id, model_version=None: NormalDistributionBot(player_id=player_id, sigma=1.2),
+    "minimax_bot": lambda player_id, model_version=None: MiniMaxBot(player_id=player_id, depth=3),
+    "xgb_bot":     lambda player_id, model_version=None: XGBMinimaxBot(player_id=player_id, depth=3, model_version=model_version),
+    "rf_bot":      lambda player_id, model_version=None: RandomForestMinimaxBot(player_id=player_id),
 }
 
 def get_agent_fingerprint(agent_key, model_version=None):
@@ -30,7 +31,8 @@ def get_agent_fingerprint(agent_key, model_version=None):
         "random_bot": "agents/uniform.py",
         "normal_bot": "agents/normal_dist.py",
         "minimax_bot": "agents/minimax_bot.py",
-        "xgb_bot": "agents/xgb_bot.py"
+        "xgb_bot": "agents/xgb_bot.py",
+        "rf_bot": "agents/rf_bot.py"
     }
     
     target_file = file_map.get(agent_key, "")
@@ -76,13 +78,9 @@ def already_tested_with_current_fingerprints(agent_a, agent_b, history, ver_a=No
     return False
 
 def instantiate_agent(p_type, player_id, model_version=None):
-    if p_type == "normal_bot":
-        return AGENT_REGISTRY_MAP[p_type](player_id=player_id, sigma=1.2)
-    elif p_type == "minimax_bot":
-        return MiniMaxBot(player_id=player_id, depth=3)
-    elif p_type == "xgb_bot":
-        return XGBMinimaxBot(player_id=player_id, depth=3, model_version=model_version)
-    return AGENT_REGISTRY_MAP[p_type](player_id=player_id)
+    if p_type not in AGENT_REGISTRY_MAP:
+        raise ValueError(f"Unknown agent type: {p_type}")
+    return AGENT_REGISTRY_MAP[p_type](player_id=player_id, model_version=model_version)
 
 def play_match_with_telemetry(agent_p0, agent_p1):
     state = create_board()
@@ -92,25 +90,20 @@ def play_match_with_telemetry(agent_p0, agent_p1):
     
     while not is_terminal_node(state):
         valid_moves = get_valid_locations(state)
-        if not valid_moves:
-            break
+        if not valid_moves: break
             
         current_agent = agents[turn]
         col = current_agent.get_move(state)
         
-        if col is None or col not in valid_moves:
-            col = np.random.choice(valid_moves)
+        if col is None or col not in valid_moves:   col = np.random.choice(valid_moves)
             
         moves_history.append(int(col))
         state = drop_piece(state, col, turn)
         
-        if winning_move(state, turn):
-            return turn, moves_history
-        elif is_terminal_node(state):
-            return -1, moves_history
+        if winning_move(state, turn):   return turn, moves_history
+        elif is_terminal_node(state):   return -1, moves_history
             
         turn = 1 - turn
-        
     return -1, moves_history
 
 def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ver_b=None):
@@ -143,7 +136,6 @@ def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ve
     half_games = total_games // 2
     game_lengths = []
 
-    
     for _ in range(half_games):
         a_bot = instantiate_agent(agent_a_key, 0, model_version=ver_a)
         b_bot = instantiate_agent(agent_b_key, 1, model_version=ver_b)
@@ -174,7 +166,6 @@ def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ve
             "moves": moves
         })
 
-    
     for _ in range(half_games):
         b_bot = instantiate_agent(agent_b_key, 0, model_version=ver_b)
         a_bot = instantiate_agent(agent_a_key, 1, model_version=ver_a)
@@ -216,14 +207,12 @@ def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ve
         print(f"  Wins: {wins} | Losses: {losses} | Ties: {ties} | Win Rate: {win_rate:.1f}%")
     print(f"  Average Match Length: {avg_len:.1f} moves")
 
-    
     log_benchmark_record(stats)
         
     return stats
 
 if __name__ == "__main__":
     print("=== MLOps Automated Model Tournament Runner ===")
-    
     
     init_db()
     
@@ -237,7 +226,6 @@ if __name__ == "__main__":
 
     print(f"Found {len(registered_models)} registered model checkpoints to evaluate against Minimax baseline.")
 
-    
     baseline_results = []
     for version_id in registered_models:
         stats = run_smart_benchmark("xgb_bot", "minimax_bot", total_games=40, ver_a=version_id, ver_b=None)
@@ -247,7 +235,6 @@ if __name__ == "__main__":
             win_rate = (wins / 40.0) * 100
             baseline_results.append((version_id, win_rate))
 
-    
     baseline_results.sort(key=lambda x: x[1], reverse=True)
     
     print("\n" + "="*45)
@@ -260,7 +247,6 @@ if __name__ == "__main__":
     top_3_versions = [vid for vid, wr in baseline_results[:3]]
     print(f"\nTop {len(top_3_versions)} models selected for the Champion Round-Robin Tournament: {top_3_versions}")
 
-    
     if len(top_3_versions) > 1:
         print("\n=== STARTING TOP-3 ROUND-ROBIN TOURNAMENT ===")
         for i in range(len(top_3_versions)):

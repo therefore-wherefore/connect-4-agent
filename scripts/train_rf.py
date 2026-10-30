@@ -25,13 +25,13 @@ RF_HYPERPARAMS = {
 if __name__ == "__main__":
     print("Starting strict Random Forest MLOps training pipeline...")
     
-    # 1. Initialize database schema only if tables are missing
+    
     init_db()
     
-    # 2. Enforce strict Git repository cleanliness
+    
     check_git_cleanliness()
     
-    # Load training dataset directly from SQLite database
+    
     db_samples, total_db_games = load_training_dataset()
     print(f"Loaded {total_db_games} total games from SQLite database.")
     

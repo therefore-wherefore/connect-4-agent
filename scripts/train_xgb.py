@@ -16,7 +16,7 @@ from utils.mlops import get_git_commit_hash, check_git_cleanliness, get_data_che
 if __name__ == "__main__":
     print("Starting strict MLOps training pipeline...")
     
-    # init db schema, only if tables are missing
+    
     init_db()
     
     check_git_cleanliness()

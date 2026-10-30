@@ -3,7 +3,7 @@ import sys
 import time
 import numpy as np
 
-# Automatically find project root and ensure clean imports
+
 if (PROJECT_ROOT := os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -75,10 +75,10 @@ def generate_batch(p0_type, p1_type, num_games):
 if __name__ == "__main__":
     print("=== MLOps Dataset Generation Pipeline ===")
     
-    # Ensure database schema exists
+    
     init_db()
     
-    # Define exact matchup quotas requested
+    
     matchups = [
         ("random_bot", "random_bot", 200),
         ("random_bot", "normal_bot", 200),

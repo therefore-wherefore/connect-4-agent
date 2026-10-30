@@ -9,7 +9,7 @@ from agents.minimax_bot import MiniMaxBot
 from agents.xgb_bot import XGBMinimaxBot
 from persistence.database import init_db, log_game_record
 
-# 1. AGENT REGISTRY
+
 AGENT_REGISTRY = {
     "random_bot": UniformDistributionBot,
     "normal_bot": NormalDistributionBot,
@@ -17,9 +17,9 @@ AGENT_REGISTRY = {
     "xgb_bot": XGBMinimaxBot,
 }
 
-# 2. CONFIGURATION: Set your interactive game mode here
-PLAYER_0_TYPE = "xgb_bot"       # Options: "human", or any key in AGENT_REGISTRY
-PLAYER_1_TYPE = "minimax_bot"   # Options: "human", or any key in AGENT_REGISTRY
+
+PLAYER_0_TYPE = "xgb_bot"       
+PLAYER_1_TYPE = "minimax_bot"   
 DEPTH = 4
 
 SQUARESIZE = 100
@@ -35,9 +35,9 @@ WHITE = (245, 245, 245)
 
 def draw_board(screen, state):
     p0_mask, occupancy, _ = state
-    p1_mask = occupancy ^ p0_mask  # Derive Player 1 pieces
+    p1_mask = occupancy ^ p0_mask  
     
-    # Draw background board
+    
     screen.fill(BLUE, (0, SQUARESIZE, WIDTH, HEIGHT - SQUARESIZE))
     
     for c in range(7):
@@ -71,7 +71,7 @@ def initialise_agent(p_type, player_id):
     return agent_class(player_id=player_id)
 
 def run_game():
-    # Ensure database schema is provisioned
+    
     init_db()
     
     pygame.init()
@@ -80,7 +80,7 @@ def run_game():
     
     state = create_board()
     game_over = False
-    turn = 0  # 0: Player 0 (Red), 1: Player 1 (Yellow)
+    turn = 0  
     moves_history = []
     
     agents = {
@@ -100,7 +100,7 @@ def run_game():
         current_player_type = PLAYER_0_TYPE if turn == 0 else PLAYER_1_TYPE
         current_agent = agents[turn]
         
-        # Handle Bot Turn
+        
         if current_player_type != "human" and not game_over:
             col = current_agent.get_move(state)
             
@@ -122,7 +122,7 @@ def run_game():
                 draw_board(screen, state)
             continue
             
-        # Handle Human Turn Events
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -158,7 +158,7 @@ def run_game():
                     turn = 1 - turn
                     draw_board(screen, state)
                     
-    # Log interactive game telemetry directly into SQLite database
+    
     game_record = {
         "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
         "game_type": "interactive",

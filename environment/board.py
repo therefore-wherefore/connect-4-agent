@@ -1,5 +1,3 @@
-# environment/board.py
-
 def create_board():
     """Returns an empty board state: (p0_mask, occupancy_mask, moves_count)"""
     return (0, 0, 0)
@@ -11,7 +9,7 @@ def copy_board(state):
 def get_valid_locations(state):
     """Returns a list of valid columns (0-6) where a piece can be dropped."""
     _, occupancy, _ = state
-    # Top row bits for columns 0 to 6 are at bit positions col * 7 + 5
+
     return [col for col in range(7) if not (occupancy & (1 << (col * 7 + 5)))]
 
 def drop_piece(state, col, player_id):
@@ -34,13 +32,11 @@ def winning_move(state, player_id):
     """Checks if player_id (0 or 1) has 4 in a row using bitwise shifts."""
     p0_mask, occupancy, _ = state
     
-    # Derive the specific player's mask
     if player_id == 0:
         mask = p0_mask
     else:
-        mask = occupancy ^ p0_mask  # Player 1 pieces are derived instantly
+        mask = occupancy ^ p0_mask  
         
-    # 4 directional bitwise win-checks
     m = mask & (mask >> 1)
     if m & (m >> 2):    return True  # Vertical
     

@@ -25,22 +25,22 @@ def analyze_database():
                 record = json.loads(line)
                 total_games += 1
                 
-                # 1. Game Type Tracking
+                
                 g_type = record.get("game_type", "unknown")
                 game_types[g_type] += 1
                 
-                # 2. Matchup Tracking
+                
                 p0 = record.get("player_0", "unknown")
                 p1 = record.get("player_1", "unknown")
                 matchup = f"{p0} (P0) vs {p1} (P1)"
                 matchups[matchup] += 1
                 
-                # 3. Winner Breakdown per Matchup
+                
                 winner = record.get("winner", "unknown")
                 outcome_key = f"[{matchup}] Winner: {winner}"
                 winner_breakdown[outcome_key] += 1
                 
-                # 4. Search Depth Performance (if logged)
+                
                 depth = record.get("search_depth")
                 if depth is not None:
                     depth_stats[depth]["total"] += 1
@@ -51,7 +51,7 @@ def analyze_database():
                     else:
                         depth_stats[depth]["ties"] += 1
                         
-                # 5. Match Lengths
+                
                 total_moves = record.get("total_moves")
                 if total_moves is not None:
                     match_lengths.append(total_moves)
@@ -59,7 +59,7 @@ def analyze_database():
             except json.JSONDecodeError:
                 continue
 
-    # --- Print Structured Diagnostic Report ---
+    
     print("\n" + "="*40)
     print("      GAME DATABASE DIAGNOSTIC REPORT      ")
     print("="*40)

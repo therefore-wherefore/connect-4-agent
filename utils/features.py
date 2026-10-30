@@ -1,4 +1,3 @@
-# utils/features.py
 import numpy as np
 
 def extract_features(state):
@@ -15,11 +14,11 @@ def extract_features(state):
                 height += 1
         col_heights.append(height)
     
-    # 1. Column heights (7 features)
+    
     features.extend(col_heights)
-    # 2. Center preference score (1 feature)
+    
     features.append(col_heights[3] * 3 + (col_heights[2] + col_heights[4]) * 2)
-    # 3. Piece counts and normalised move count (3 features)
+    
     features.extend([bin(p1).count('1'), bin(p2).count('1'), count / 42.0])
     
     return np.array(features, dtype=np.float32)

@@ -4,7 +4,7 @@ import time
 import hashlib
 import numpy as np
 
-# Automatically find project root and ensure clean imports
+
 if (PROJECT_ROOT := os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -143,7 +143,7 @@ def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ve
     half_games = total_games // 2
     game_lengths = []
 
-    # Block 1: Agent A as P0, Agent B as P1
+    
     for _ in range(half_games):
         a_bot = instantiate_agent(agent_a_key, 0, model_version=ver_a)
         b_bot = instantiate_agent(agent_b_key, 1, model_version=ver_b)
@@ -174,7 +174,7 @@ def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ve
             "moves": moves
         })
 
-    # Block 2: Agent B as P0, Agent A as P1
+    
     for _ in range(half_games):
         b_bot = instantiate_agent(agent_b_key, 0, model_version=ver_b)
         a_bot = instantiate_agent(agent_a_key, 1, model_version=ver_a)
@@ -216,7 +216,7 @@ def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ve
         print(f"  Wins: {wins} | Losses: {losses} | Ties: {ties} | Win Rate: {win_rate:.1f}%")
     print(f"  Average Match Length: {avg_len:.1f} moves")
 
-    # Save benchmark summary record to SQLite benchmarks table
+    
     log_benchmark_record(stats)
         
     return stats
@@ -224,7 +224,7 @@ def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ve
 if __name__ == "__main__":
     print("=== MLOps Automated Model Tournament Runner ===")
     
-    # Initialize database schema explicitly on startup
+    
     init_db()
     
     registry = fetch_model_registry_from_db()
@@ -237,7 +237,7 @@ if __name__ == "__main__":
 
     print(f"Found {len(registered_models)} registered model checkpoints to evaluate against Minimax baseline.")
 
-    # Phase 1: Benchmark all registered models against Minimax baseline
+    
     baseline_results = []
     for version_id in registered_models:
         stats = run_smart_benchmark("xgb_bot", "minimax_bot", total_games=40, ver_a=version_id, ver_b=None)
@@ -247,7 +247,7 @@ if __name__ == "__main__":
             win_rate = (wins / 40.0) * 100
             baseline_results.append((version_id, win_rate))
 
-    # Phase 2: Rank models by win rate against Minimax and select top 3
+    
     baseline_results.sort(key=lambda x: x[1], reverse=True)
     
     print("\n" + "="*45)
@@ -260,7 +260,7 @@ if __name__ == "__main__":
     top_3_versions = [vid for vid, wr in baseline_results[:3]]
     print(f"\nTop {len(top_3_versions)} models selected for the Champion Round-Robin Tournament: {top_3_versions}")
 
-    # Phase 3: Run round-robin tournament among the top 3 models
+    
     if len(top_3_versions) > 1:
         print("\n=== STARTING TOP-3 ROUND-ROBIN TOURNAMENT ===")
         for i in range(len(top_3_versions)):

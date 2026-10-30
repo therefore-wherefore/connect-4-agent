@@ -2,7 +2,7 @@ import os
 import joblib
 import numpy as np
 from environment.board import get_valid_locations, drop_piece, winning_move
-from utils.features import extract_board_features
+from utils.features import extract_features
 from persistence.database import get_db_connection
 
 class RandomForestMinimaxBot:
@@ -40,7 +40,7 @@ class RandomForestMinimaxBot:
             if winning_move(temp_state, self.player_id):
                 return col
                 
-            features = extract_board_features(temp_state, self.player_id)
+            features = extract_features(temp_state, self.player_id)
             score = self.model.predict(features.reshape(1, -1))[0]
             
             if score > best_score:

@@ -217,7 +217,8 @@ if __name__ == "__main__":
     init_db()
     
     registry = fetch_model_registry_from_db()
-    registered_models = list(registry.get("models", {}).keys())
+    models_dict = registry.get("models", {})
+    registered_models = list(models_dict.keys())
     
     if not registered_models:
         print("No registered models found in SQLite database. Running default latest vs minimax.")
@@ -228,31 +229,39 @@ if __name__ == "__main__":
 
     baseline_results = []
     for version_id in registered_models:
-        stats = run_smart_benchmark("xgb_bot", "minimax_bot", total_games=40, ver_a=version_id, ver_b=None)
+        # Dynamically determine the agent key based on what class was registered in SQLite
+        model_info = models_dict.get(version_id, {})
+        class_name = model_info.get("class_name", "")
+        
+        # Map class name or id pattern to the correct registry key
+        agent_key = "rf_bot" if "RandomForest" in class_name or "rf_" in version_id else "xgb_bot"
+        
+        stats = run_smart_benchmark(agent_key, "minimax_bot", total_games=40, ver_a=version_id, ver_b=None)
         if stats:
-            label = f"xgb_bot:{version_id}"
+            label = f"{agent_key}:{version_id}"
             wins = stats.get(label, {}).get("wins", 0)
             win_rate = (wins / 40.0) * 100
-            baseline_results.append((version_id, win_rate))
+            baseline_results.append((version_id, agent_key, win_rate))
 
-    baseline_results.sort(key=lambda x: x[1], reverse=True)
+    baseline_results.sort(key=lambda x: x[2], reverse=True)
     
     print("\n" + "="*45)
     print("      MINIMAX SCREENING LEADERBOARD      ")
     print("="*45)
-    for rank, (vid, wr) in enumerate(baseline_results, 1):
-        print(f"  {rank}. {vid} -> Win Rate vs Minimax: {wr:.1f}%")
+    for rank, (vid, a_key, wr) in enumerate(baseline_results, 1):
+        print(f"  {rank}. [{a_key}] {vid} -> Win Rate vs Minimax: {wr:.1f}%")
     print("="*45)
 
-    top_3_versions = [vid for vid, wr in baseline_results[:3]]
-    print(f"\nTop {len(top_3_versions)} models selected for the Champion Round-Robin Tournament: {top_3_versions}")
+    top_3 = baseline_results[:3]
+    top_3_versions = [(vid, a_key) for vid, a_key, wr in top_3]
+    print(f"\nTop {len(top_3_versions)} models selected for the Champion Round-Robin Tournament.")
 
     if len(top_3_versions) > 1:
         print("\n=== STARTING TOP-3 ROUND-ROBIN TOURNAMENT ===")
         for i in range(len(top_3_versions)):
             for j in range(i + 1, len(top_3_versions)):
-                v_a = top_3_versions[i]
-                v_b = top_3_versions[j]
-                run_smart_benchmark("xgb_bot", "xgb_bot", total_games=40, ver_a=v_a, ver_b=v_b)
+                v_a, key_a = top_3_versions[i]
+                v_b, key_b = top_3_versions[j]
+                run_smart_benchmark(key_a, key_b, total_games=40, ver_a=v_a, ver_b=v_b)
     else:
         print("\nOnly 1 model available in SQLite. Skipping round-robin tournament.")

@@ -13,16 +13,17 @@ from agents.normal_dist import NormalDistributionBot
 from agents.minimax_bot import MiniMaxBot
 from agents.rf_bot import RandomForestMinimaxBot
 from agents.xgb_bot import XGBMinimaxBot
+from agents.neuro_bot import NeuroMinimaxBot
 from persistence.database import init_db, log_game_record, fetch_model_registry_from_db, log_benchmark_record, fetch_all_benchmarks
 
 AGENT_REGISTRY_MAP = {
-    "random_bot":  lambda player_id, model_version=None: UniformDistributionBot(player_id=player_id),
-    "normal_bot":  lambda player_id, model_version=None: NormalDistributionBot(player_id=player_id, sigma=1.2),
-    "minimax_bot": lambda player_id, model_version=None: MiniMaxBot(player_id=player_id, depth=3),
-    "xgb_bot":     lambda player_id, model_version=None: XGBMinimaxBot(player_id=player_id, depth=3, model_version=model_version),
-    "rf_bot":      lambda player_id, model_version=None: RandomForestMinimaxBot(player_id=player_id),
+    "random_bot":   lambda player_id, model_version=None: UniformDistributionBot(player_id=player_id),
+    "normal_bot":   lambda player_id, model_version=None: NormalDistributionBot(player_id=player_id, sigma=1.2),
+    "minimax_bot":  lambda player_id, model_version=None: MiniMaxBot(player_id=player_id, depth=3),
+    "xgb_bot":      lambda player_id, model_version=None: XGBMinimaxBot(player_id=player_id, depth=3, model_version=model_version),
+    "rf_bot":       lambda player_id, model_version=None: RandomForestMinimaxBot(player_id=player_id),
+    "neuro_bot":    lambda player_id, model_version=None: NeuroMinimaxBot(player_id=player_id, model_version=model_version),
 }
-
 def get_agent_fingerprint(agent_key, model_version=None):
     """Computes an MD5 checksum of the agent's source code and its specific active model weights."""
     hasher = hashlib.md5()
@@ -32,7 +33,8 @@ def get_agent_fingerprint(agent_key, model_version=None):
         "normal_bot": "agents/normal_dist.py",
         "minimax_bot": "agents/minimax_bot.py",
         "xgb_bot": "agents/xgb_bot.py",
-        "rf_bot": "agents/rf_bot.py"
+        "rf_bot": "agents/rf_bot.py",
+        "neuro_bot": "agents/neuro_bot.py"
     }
     
     target_file = file_map.get(agent_key, "")
@@ -40,7 +42,7 @@ def get_agent_fingerprint(agent_key, model_version=None):
         with open(target_file, "rb") as f:
             hasher.update(f.read())
             
-    if agent_key == "xgb_bot":
+    if agent_key in ["xgb_bot", "neuro_bot"]:
         registry = fetch_model_registry_from_db()
         models_dict = registry.get("models", {})
         
@@ -60,7 +62,6 @@ def get_agent_fingerprint(agent_key, model_version=None):
                 hasher.update(f.read())
                 
     return hasher.hexdigest()
-
 def already_tested_with_current_fingerprints(agent_a, agent_b, history, ver_a=None, ver_b=None):
     """Skips testing if both agents' specific versions and fingerprints match a previous entry."""
     fp_a = get_agent_fingerprint(agent_a, ver_a)
@@ -229,12 +230,13 @@ if __name__ == "__main__":
 
     baseline_results = []
     for version_id in registered_models:
-        # Dynamically determine the agent key based on what class was registered in SQLite
+        
         model_info = models_dict.get(version_id, {})
         class_name = model_info.get("class_name", "")
         
-        # Map class name or id pattern to the correct registry key
-        agent_key = "rf_bot" if "RandomForest" in class_name or "rf_" in version_id else "xgb_bot"
+        if "RandomForest" in class_name or "rf_" in version_id: agent_key = "rf_bot"
+        elif "Connect4Net" in class_name or "rl_" in version_id or "neuro_" in class_name:  agent_key = "neuro_bot"
+        else:   agent_key = "xgb_bot"
         
         stats = run_smart_benchmark(agent_key, "minimax_bot", total_games=40, ver_a=version_id, ver_b=None)
         if stats:

@@ -161,8 +161,7 @@ def register_model_record(version_id, model_path, class_name, hyperparameters, t
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    if is_champion:
-        cursor.execute("UPDATE models SET is_champion = 0")
+    if is_champion: cursor.execute("UPDATE models SET is_champion = 0")
         
     cursor.execute("""
         INSERT INTO models (

@@ -1,50 +1,51 @@
 import os
 import joblib
 import numpy as np
-from environment.board import get_valid_locations, drop_piece, winning_move
+from agents.minimax_bot import Minimax
 from utils.features import extract_features
-from persistence.database import get_db_connection
+from persistence.database import fetch_model_registry_from_db
 
-class RandomForestMinimaxBot:
-    def __init__(self, player_id, depth=3, model_version=None):
-        self.player_id = player_id
-        self.depth = depth
-        self.model = self._load_model(model_version)
+class RandomForestMinimaxBot(Minimax):
+    _model_cache = {}
 
-    def _load_model(self, model_version):
-        conn = get_db_connection()
-        cursor = conn.cursor()
+    def __init__(self, player_id=1, depth=3, model_path=None, model_version=None):
+        super().__init__(player_id=player_id, depth=depth)
         
-        if model_version:
-            cursor.execute("SELECT model_path FROM models WHERE version_id = ?", (model_version,))
+        resolved_path = model_path
+        
+        if resolved_path is None:
+            try:
+                registry = fetch_model_registry_from_db()
+                models_dict = registry.get("models", {})
+                
+                target_key = model_version
+                if model_version == "champion":
+                    target_key = registry.get("champion") or registry.get("latest_model")
+                elif model_version == "latest" or not model_version:
+                    target_key = registry.get("latest_model")
+                    
+                if target_key and target_key in models_dict:
+                    candidate_path = models_dict[target_key].get("model_path")
+                    if candidate_path and os.path.exists(candidate_path):
+                        resolved_path = candidate_path
+            except Exception as e:
+                print(f"Error querying model registry from DB: {e}")
+        
+        if resolved_path and os.path.exists(resolved_path):
+            if resolved_path not in RandomForestMinimaxBot._model_cache:
+                RandomForestMinimaxBot._model_cache[resolved_path] = joblib.load(resolved_path)
+                print(f"Successfully loaded Random Forest model from {resolved_path}")
+            
+            self.model = RandomForestMinimaxBot._model_cache[resolved_path]
         else:
-            cursor.execute("SELECT model_path FROM models WHERE class_name = 'RandomForestMinimaxBot' ORDER BY created_at DESC LIMIT 1")
-            
-        row = cursor.fetchone()
-        conn.close()
-        
-        if row and os.path.exists(row["model_path"]):
-            return joblib.load(row["model_path"])
-        raise FileNotFoundError("No trained Random Forest model checkpoint found in SQLite registry.")
+            self.model = None
+            print(f"Warning: Random Forest model file not found at '{resolved_path}'. Falling back to 0 score heuristic.")
 
-    def get_move(self, state):
-        valid_moves = get_valid_locations(state)
-        if not valid_moves:
-            return None
-            
-        best_score = -float('inf')
-        best_move = valid_moves[0]
+    def score_position(self, state, piece) -> int:
+        if self.model is None:
+            return 0
         
-        for col in valid_moves:
-            temp_state = drop_piece(state, col, self.player_id)
-            if winning_move(temp_state, self.player_id):
-                return col
-                
-            features = extract_features(temp_state, self.player_id)
-            score = self.model.predict(features.reshape(1, -1))[0]
-            
-            if score > best_score:
-                best_score = score
-                best_move = col
-                
-        return best_move
+        features = np.array([extract_features(state)])
+        pred = self.model.predict(features)[0]
+        scaled_score = int(pred * 10000)
+        return scaled_score if piece == self.player_id else -scaled_score

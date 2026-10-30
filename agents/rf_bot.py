@@ -4,13 +4,11 @@ import numpy as np
 from agents.minimax_bot import Minimax
 from utils.features import extract_features
 from persistence.database import fetch_model_registry_from_db
-
 class RandomForestMinimaxBot(Minimax):
     _model_cache = {}
 
     def __init__(self, player_id=1, depth=3, model_path=None, model_version=None):
         super().__init__(player_id=player_id, depth=depth)
-        
         resolved_path = model_path
         
         if resolved_path is None:
@@ -40,12 +38,13 @@ class RandomForestMinimaxBot(Minimax):
         else:
             self.model = None
             print(f"Warning: Random Forest model file not found at '{resolved_path}'. Falling back to 0 score heuristic.")
+        if hasattr(self.model, 'n_jobs'):   self.model.n_jobs = 1
 
     def score_position(self, state, piece) -> int:
         if self.model is None:
             return 0
         
         features = np.array([extract_features(state)])
-        pred = self.model.predict(features)[0]
-        scaled_score = int(pred * 10000)
+        prediction = self.model.predict(features)[0]
+        scaled_score = int(prediction * 10000)
         return scaled_score if piece == self.player_id else -scaled_score

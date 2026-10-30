@@ -4,7 +4,6 @@ import time
 import hashlib
 import numpy as np
 
-
 if (PROJECT_ROOT := os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))) not in sys.path:    sys.path.insert(0, PROJECT_ROOT)
 
 from environment.board import create_board, get_valid_locations, drop_piece, is_terminal_node, winning_move
@@ -21,9 +20,27 @@ AGENT_REGISTRY_MAP = {
     "normal_bot":   lambda player_id, model_version=None: NormalDistributionBot(player_id=player_id, sigma=1.2),
     "minimax_bot":  lambda player_id, model_version=None: MiniMaxBot(player_id=player_id, depth=3),
     "xgb_bot":      lambda player_id, model_version=None: XGBMinimaxBot(player_id=player_id, depth=3, model_version=model_version),
-    "rf_bot":       lambda player_id, model_version=None: RandomForestMinimaxBot(player_id=player_id),
+    "rf_bot":       lambda player_id, model_version=None: RandomForestMinimaxBot(player_id=player_id, model_version=model_version),
     "neuro_bot":    lambda player_id, model_version=None: NeuroMinimaxBot(player_id=player_id, model_version=model_version),
 }
+
+def verify_model_exists(agent_key, model_version):
+    """Pre-flight check: ensures the registered model file actually exists on disk before benchmarking."""
+    if not model_version or agent_key in ["random_bot", "normal_bot", "minimax_bot"]:
+        return True
+        
+    registry = fetch_model_registry_from_db()
+    models_dict = registry.get("models", {})
+    
+    target_key = model_version if model_version in models_dict else registry.get("latest_model")
+    if target_key and target_key in models_dict:
+        model_path = models_dict[target_key].get("model_path")
+        if model_path:
+            full_path = model_path if os.path.isabs(model_path) else os.path.join(PROJECT_ROOT, model_path)
+            return os.path.exists(full_path)
+            
+    return False
+
 def get_agent_fingerprint(agent_key, model_version=None):
     """Computes an MD5 checksum of the agent's source code and its specific active model weights."""
     hasher = hashlib.md5()
@@ -42,7 +59,7 @@ def get_agent_fingerprint(agent_key, model_version=None):
         with open(target_file, "rb") as f:
             hasher.update(f.read())
             
-    if agent_key in ["xgb_bot", "neuro_bot"]:
+    if agent_key in ["xgb_bot", "neuro_bot", "rf_bot"]:
         registry = fetch_model_registry_from_db()
         models_dict = registry.get("models", {})
         
@@ -52,16 +69,12 @@ def get_agent_fingerprint(agent_key, model_version=None):
         if target_key and target_key in models_dict:
             model_path = models_dict[target_key].get("model_path")
             
-        if not model_path or not os.path.exists(model_path):
-            legacy_path = "connect4_xgb.json"
-            if os.path.exists(legacy_path):
-                model_path = legacy_path
-                
         if model_path and os.path.exists(model_path):
             with open(model_path, "rb") as f:
                 hasher.update(f.read())
                 
     return hasher.hexdigest()
+
 def already_tested_with_current_fingerprints(agent_a, agent_b, history, ver_a=None, ver_b=None):
     """Skips testing if both agents' specific versions and fingerprints match a previous entry."""
     fp_a = get_agent_fingerprint(agent_a, ver_a)
@@ -108,6 +121,10 @@ def play_match_with_telemetry(agent_p0, agent_p1):
     return -1, moves_history
 
 def run_smart_benchmark(agent_a_key, agent_b_key, total_games=40, ver_a=None, ver_b=None):
+    
+    if not verify_model_exists(agent_a_key, ver_a): return print(f"\n[Error] Skipping benchmark: Model weights for '{agent_a_key}:{ver_a}' not found on disk.")
+    if not verify_model_exists(agent_b_key, ver_b): return print(f"\n[Error] Skipping benchmark: Model weights for '{agent_b_key}:{ver_b}' not found on disk.")
+
     history = fetch_all_benchmarks()
 
     label_a = f"{agent_a_key}:{ver_a}" if ver_a else agent_a_key
@@ -230,13 +247,17 @@ if __name__ == "__main__":
 
     baseline_results = []
     for version_id in registered_models:
-        
         model_info = models_dict.get(version_id, {})
         class_name = model_info.get("class_name", "")
         
-        if "RandomForest" in class_name or "rf_" in version_id: agent_key = "rf_bot"
-        elif "Connect4Net" in class_name or "rl_" in version_id or "neuro_" in class_name:  agent_key = "neuro_bot"
-        else:   agent_key = "xgb_bot"
+        if  "RandomForest" in class_name or "rf_" in version_id:
+            agent_key = "rf_bot"
+        elif ("Connect4Net" in class_name 
+            or "rl_"        in version_id 
+            or "neuro_"     in class_name):  
+            agent_key = "neuro_bot"
+        else:
+            agent_key = "xgb_bot"
         
         stats = run_smart_benchmark(agent_key, "minimax_bot", total_games=40, ver_a=version_id, ver_b=None)
         if stats:

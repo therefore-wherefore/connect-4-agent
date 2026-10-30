@@ -69,6 +69,7 @@ class NeuroMinimaxBot(Minimax):
                 print(f"Successfully loaded Neural Network weights from {resolved_path}")
             
             self.model = NeuroMinimaxBot._model_cache[resolved_path]
+            if hasattr(self.model, "n_jobs"):   self.model.n_jobs = 1
         else:
             self.model = None
             print(f"Warning: Neural Network model file not found at '{resolved_path}'. Falling back to 0 score heuristic.")
